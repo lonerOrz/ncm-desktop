@@ -4,6 +4,8 @@
 
 An **unofficial** Linux desktop client for [NetEase Cloud Music](https://music.163.com), which works as a wrapper around the official web player.
 
+![preview](.github/assets/preview.png)
+
 ## Installation
 
 ### NixOS / Nix
