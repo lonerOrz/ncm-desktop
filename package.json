@@ -17,7 +17,10 @@
         "zip"
       ],
       "category": "Audio",
-      "artifactName": "${name}_${version}_linux.${ext}"
+      "artifactName": "${name}_${version}_linux.${ext}",
+      "extraFiles": [
+        "com.netease.cloud-music.desktop"
+      ]
     },
     "mac": {
       "target": [
@@ -32,10 +35,7 @@
         "zip"
       ],
       "artifactName": "${name}_${version}_win.${ext}"
-    },
-    "extraFiles": [
-      "com.netease.cloud-music.desktop"
-    ]
+    }
   },
   "author": {
     "name": "lonerOrz",
