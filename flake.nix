@@ -17,6 +17,8 @@
 
       url = "https://music.163.com/st/webplayer";
 
+      packageJSON = builtins.fromJSON (builtins.readFile ./package.json);
+
     in
     {
       packages = forAllSystems (
@@ -30,28 +32,38 @@
           default = self.packages.${system}.ncm-desktop;
 
           ncm-desktop = pkgs.stdenv.mkDerivation {
-            pname = "ncm-desktop";
-            version = "1.0.0";
+            pname = packageJSON.name;
+            version = packageJSON.version;
 
             src = ./.;
 
             nativeBuildInputs = [
               pkgs.makeWrapper
+              pkgs.electron
             ];
 
             installPhase = ''
-              mkdir -p $out/bin $out/lib/ncm-desktop
-              mkdir -p $out/share/applications
-              mkdir -p $out/share/icons/hicolor/512x512/apps
+              runHook preInstall
 
-              cp ${./src/main.js}    $out/lib/ncm-desktop/main.js
-              cp ${./src/preload.js} $out/lib/ncm-desktop/preload.js
-              cp ${./icon.png}       $out/lib/ncm-desktop/icon.png
-              cp ${./icon.png}       $out/share/icons/hicolor/512x512/apps/com.netease.cloud-music.png
-              cp ${./com.netease.cloud-music.desktop} $out/share/applications/com.netease.cloud-music.desktop
+              # application code
+              mkdir -p $out/lib/${packageJSON.name}
+              cp -r ${./src}/* $out/lib/${packageJSON.name}/
+              cp ${./icon.png} $out/lib/${packageJSON.name}/icon.png
 
+              # xdg desktop entry
+              install -Dm644 ${./com.netease.cloud-music.desktop} \
+                $out/share/applications/com.netease.cloud-music.desktop
+
+              # icon (xdg-compliant path)
+              install -Dm644 ${./icon.png} \
+                $out/share/icons/hicolor/512x512/apps/com.netease.cloud-music.png
+
+              runHook postInstall
+            '';
+
+            postFixup = ''
               makeWrapper ${pkgs.electron}/bin/electron $out/bin/ncm \
-                --add-flags "$out/lib/ncm-desktop/main.js" \
+                --add-flags "$out/lib/${packageJSON.name}/main.js" \
                 --add-flags "${url}" \
                 --set NIXOS_OZONE_WL 1 \
                 --set ELECTRON_DISABLE_GPU 1 \
@@ -61,7 +73,7 @@
                 --set ELECTRON_DISABLE_SANDBOX 1
             '';
 
-            meta = with lib; {
+            meta = {
               description = "NetEase Cloud Music desktop client (Electron wrapper)";
               homepage = "https://music.163.com";
               license = lib.licenses.gpl3Plus;
