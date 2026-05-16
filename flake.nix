@@ -41,6 +41,7 @@
               pkgs.makeWrapper
               pkgs.electron
               pkgs.copyDesktopItems
+              pkgs.pkgs.imagemagick
             ];
 
             desktopItems = [
@@ -48,7 +49,7 @@
                 name = "ncm-desktop";
                 desktopName = "NetEase Cloud Music";
                 exec = "ncm %U";
-                icon = "com.netease-cloud-music";
+                icon = "ncm-desktop";
                 categories = [
                   "AudioVideo"
                   "Music"
@@ -65,8 +66,11 @@
               cp -r ${./src}/* $out/lib/${packageJSON.name}/
               cp ${./icon.png} $out/lib/${packageJSON.name}/icon.png
 
-              install -Dm644 ${./icon.png} \
-                $out/share/icons/hicolor/512x512/apps/com.netease.cloud-music.png
+              for size in 16 24 32 48 64 128 256 512; do
+                mkdir -p $out/share/icons/hicolor/"$size"x"$size"/apps
+                magick convert -background none -resize "$size"x"$size" ${./icon.png} \
+                  $out/share/icons/hicolor/"$size"x"$size"/apps/ncm-desktop.png
+              done
 
               runHook postInstall
             '';
