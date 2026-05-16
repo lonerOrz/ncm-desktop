@@ -17,8 +17,8 @@ function getIconPath() {
 
 function createWindow() {
     mainWindow = new BrowserWindow({
-        width: 1280,
-        height: 800,
+        width: 1920,
+        height: 1080,
         icon: getIconPath(),
         webPreferences: {
             preload: path.join(__dirname, "preload.js"),
