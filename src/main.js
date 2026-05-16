@@ -203,53 +203,40 @@ function createWindow() {
     }
   });
 
-  nativeTheme.on("updated", () => {
-    if (followSystemTheme) {
-      mainWindow?.webContents.send(
-        "theme-changed",
-        nativeTheme.shouldUseDarkColors,
-      );
-    }
-  });
-
-  ipcMain.handle("get-theme", () => {
-    return followSystemTheme && nativeTheme.shouldUseDarkColors;
-  });
-
   mainWindow.on("resize", scheduleSave);
   mainWindow.on("move", scheduleSave);
-    mainWindow.on("maximize", scheduleSave);
-    mainWindow.on("unmaximize", scheduleSave);
-
-    function updateTitleBar() {
-        if (process.platform === "win32" && mainWindow) {
-            const isDark = followSystemTheme && nativeTheme.shouldUseDarkColors;
-            mainWindow.setTitleBarOverlay({
-                color: isDark ? "#1e1e1e" : "#ffffff",
-                symbolColor: isDark ? "#ffffff" : "#000000"
-            });
-        }
-    }
-
-    // Notify theme change to renderer
-    nativeTheme.on("updated", () => {
-        if (followSystemTheme) {
-            mainWindow?.webContents.send("theme-changed", nativeTheme.shouldUseDarkColors);
-            updateTitleBar();
-        }
-    });
-
-    ipcMain.handle("get-theme", () => {
-        return followSystemTheme && nativeTheme.shouldUseDarkColors;
-    });
-
-    // Theme toggle in tray
-    const updateThemeState = () => {
-        mainWindow?.webContents.send("theme-changed", followSystemTheme && nativeTheme.shouldUseDarkColors);
-        updateTitleBar();
-    };
-
+  mainWindow.on("maximize", scheduleSave);
+  mainWindow.on("unmaximize", scheduleSave);
 }
+
+function updateTitleBar() {
+  if (process.platform === "win32" && mainWindow) {
+    const isDark = followSystemTheme && nativeTheme.shouldUseDarkColors;
+    mainWindow.setTitleBarOverlay({
+      color: isDark ? "#1e1e1e" : "#ffffff",
+      symbolColor: isDark ? "#ffffff" : "#000000",
+      height: 32,
+    });
+  }
+}
+
+function updateThemeState() {
+  mainWindow?.webContents.send(
+    "theme-changed",
+    followSystemTheme && nativeTheme.shouldUseDarkColors,
+  );
+  updateTitleBar();
+}
+
+nativeTheme.on("updated", () => {
+  if (followSystemTheme) {
+    updateThemeState();
+  }
+});
+
+ipcMain.handle("get-theme", () => {
+  return followSystemTheme && nativeTheme.shouldUseDarkColors;
+});
 
 function updateTrayMenu() {
   const visible = mainWindow?.isVisible() ?? true;
@@ -264,16 +251,14 @@ function updateTrayMenu() {
         }
       },
     },
-        {
-            label: `Follow System Theme: ${followSystemTheme ? "[ON]" : "[OFF]"}`,
-            click: () => {
-                followSystemTheme = !followSystemTheme;
-                scheduleSave();
-                updateThemeState();
-                updateTrayMenu();
-            },
-        },
-
+    {
+      label: `Follow System Theme: ${followSystemTheme ? "[ON]" : "[OFF]"}`,
+      click: () => {
+        followSystemTheme = !followSystemTheme;
+        scheduleSave();
+        updateThemeState();
+        updateTrayMenu();
+      },
     },
     { type: "separator" },
     {
