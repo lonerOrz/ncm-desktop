@@ -169,20 +169,13 @@ function createWindow() {
         x: saved?.x,
         y: saved?.y,
         icon: getIconPath(),
-        titleBarStyle: process.platform === "win32" ? "hidden" : "default",
-        titleBarOverlay: process.platform === "win32" ? {
-            color: followSystemTheme && nativeTheme.shouldUseDarkColors ? "#1e1e1e" : "#ffffff",
-            symbolColor: followSystemTheme && nativeTheme.shouldUseDarkColors ? "#ffffff" : "#000000",
-            height: 32
-        } : false,
         webPreferences: {
-
-      preload: path.join(__dirname, "preload.js"),
-      contextIsolation: false,
-      webviewTag: true,
-      spellcheck: false,
-    },
-  });
+            preload: path.join(__dirname, "preload.js"),
+            contextIsolation: false,
+            webviewTag: true,
+            spellcheck: false,
+        },
+    });
 
   if (saved?.maximized) {
     mainWindow.maximize();
@@ -209,23 +202,11 @@ function createWindow() {
   mainWindow.on("unmaximize", scheduleSave);
 }
 
-function updateTitleBar() {
-  if (process.platform === "win32" && mainWindow) {
-    const isDark = followSystemTheme && nativeTheme.shouldUseDarkColors;
-    mainWindow.setTitleBarOverlay({
-      color: isDark ? "#1e1e1e" : "#ffffff",
-      symbolColor: isDark ? "#ffffff" : "#000000",
-      height: 32,
-    });
-  }
-}
-
 function updateThemeState() {
   mainWindow?.webContents.send(
     "theme-changed",
     followSystemTheme && nativeTheme.shouldUseDarkColors,
   );
-  updateTitleBar();
 }
 
 nativeTheme.on("updated", () => {
