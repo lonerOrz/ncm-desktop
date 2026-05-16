@@ -52,6 +52,12 @@ jobs:
           node-version: 24
 
       - run: npm ci
+
+      - name: Sync package version with tag
+        run: npm version "${VERSION#v}" --no-git-tag-version
+        env:
+          VERSION: ${{ inputs.tag }}
+
       - run: npm run build
 
       - name: Upload build artifacts
@@ -63,7 +69,6 @@ jobs:
             dist/release/*.deb
             dist/release/*.dmg
             dist/release/*.exe
-            dist/release/*.zip
           if-no-files-found: error
 
 

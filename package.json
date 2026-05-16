@@ -16,8 +16,7 @@
     "linux": {
       "target": [
         "AppImage",
-        "deb",
-        "zip"
+        "deb"
       ],
       "category": "Audio",
       "artifactName": "${name}_${version}_linux.${ext}",
@@ -27,17 +26,20 @@
     },
     "mac": {
       "target": [
-        "dmg",
-        "zip"
+        "dmg"
       ],
       "artifactName": "${name}_${version}_macos.${ext}"
     },
     "win": {
       "target": [
-        "nsis",
-        "zip"
+        "nsis"
       ],
-      "artifactName": "${name}_${version}_win.${ext}"
+      "artifactName": "${name}_${version}_win.${ext}",
+      "nsis": {
+        "oneClick": false,
+        "allowToChangeInstallationDirectory": true,
+        "installDir": "$PROGRAMFILES64\\${name}"
+      }
     }
   },
   "author": {
