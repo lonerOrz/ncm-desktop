@@ -4,39 +4,102 @@ on:
   workflow_dispatch:
     inputs:
       tag:
-        description: "Release tag (e.g., v1.0.0)"
+        description: "Release tag (e.g. v1.0.0)"
         required: true
 
 jobs:
-  build:
-    strategy:
-      matrix:
-        os: [ubuntu-latest, macos-latest, windows-latest]
-    runs-on: ${{ matrix.os }}
+  validate:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
     steps:
       - uses: actions/checkout@v4
+
+      - name: Validate tag existence and cleanup stale state
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -e
+
+          TAG="${{ inputs.tag }}"
+
+          if git ls-remote --tags origin "refs/tags/${TAG}" | grep -q .; then
+            if gh release view "${TAG}" --repo "${GITHUB_REPOSITORY}" > /dev/null 2>&1; then
+              echo "::error::Tag ${TAG} already has a release"
+              exit 1
+            fi
+
+            echo "::warning::Stale tag detected — deleting remote tag"
+            gh api -X DELETE repos/${GITHUB_REPOSITORY}/git/refs/tags/${TAG} || true
+          fi
+
+
+  build:
+    needs: validate
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+
+    steps:
+      - uses: actions/checkout@v4
+
       - uses: actions/setup-node@v4
         with:
           node-version: 24
+
       - run: npm ci
       - run: npm run build
+
       - uses: actions/upload-artifact@v4
         with:
           name: artifacts-${{ matrix.os }}
-          path: dist/*
+          path: dist/
+
 
   release:
     needs: build
     runs-on: ubuntu-latest
     permissions:
       contents: write
+
+    if: ${{ needs.build.result == 'success' }}
+
     steps:
       - uses: actions/checkout@v4
+
       - uses: actions/download-artifact@v4
         with:
           path: artifacts
-      - name: Create Release
+
+      - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ inputs.tag }}
           files: artifacts/**/*
+
+
+  cleanup:
+    needs: [validate, build, release]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    if: ${{ always() && needs.release.result != 'success' }}
+
+    steps:
+      - name: Cleanup tag and release (best-effort)
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set +e
+
+          TAG="${{ inputs.tag }}"
+
+          echo "::warning::Cleaning up release state for ${TAG}"
+
+          gh release delete "${TAG}" --yes --repo "${GITHUB_REPOSITORY}" 2>/dev/null
+          gh api -X DELETE repos/${GITHUB_REPOSITORY}/git/refs/tags/${TAG} 2>/dev/null
+
+          echo "Cleanup completed (best-effort)"
