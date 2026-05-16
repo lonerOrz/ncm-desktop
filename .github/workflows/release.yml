@@ -54,6 +54,7 @@ jobs:
       - run: npm ci
 
       - name: Sync package version with tag
+        shell: bash
         run: npm version "${VERSION#v}" --no-git-tag-version
         env:
           VERSION: ${{ inputs.tag }}
