@@ -17,45 +17,58 @@ on:
         default: true
 
 jobs:
-  build:
-    if: github.event_name == 'workflow_dispatch'
-    runs-on: ${{ matrix.os }}
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - os: ubuntu-latest
-            platform: linux
-          - os: windows-latest
-            platform: windows
-          - os: macos-latest
-            platform: macos
-
+  build-linux:
+    if: ${{ github.event.inputs.linux == 'true' }}
+    runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-        if: ${{ github.event.inputs[matrix.platform] == 'true' }}
-
       - uses: actions/setup-node@v4
-        if: ${{ github.event.inputs[matrix.platform] == 'true' }}
         with:
           node-version: 24
-
-      - name: Install dependencies
-        if: ${{ github.event.inputs[matrix.platform] == 'true' }}
-        run: npm ci
-
-      - name: Build application
-        if: ${{ github.event.inputs[matrix.platform] == 'true' }}
-        run: npm run build
-
-      - name: Upload build artifacts
-        if: ${{ github.event.inputs[matrix.platform] == 'true' }}
+          cache: "npm"
+      - run: npm ci
+      - run: npm run build
+      - name: Upload Linux Artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: ${{ matrix.platform }}-build
+          name: linux-build
           path: |
             dist/release/*.AppImage
             dist/release/*.deb
-            dist/release/*.dmg
-            dist/release/*.exe
+          if-no-files-found: error
+
+  build-windows:
+    if: ${{ github.event.inputs.windows == 'true' }}
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: "npm"
+      - run: npm ci
+      - run: npm run build
+      - name: Upload Windows Artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: windows-build
+          path: dist/release/*.exe
+          if-no-files-found: error
+
+  build-macos:
+    if: ${{ github.event.inputs.macos == 'true' }}
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: "npm"
+      - run: npm ci
+      - run: npm run build
+      - name: Upload macOS Artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: macos-build
+          path: dist/release/*.dmg
           if-no-files-found: error
