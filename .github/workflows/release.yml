@@ -12,6 +12,7 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: write
+
     steps:
       - uses: actions/checkout@v4
 
@@ -37,6 +38,7 @@ jobs:
   build:
     needs: validate
     runs-on: ${{ matrix.os }}
+
     strategy:
       fail-fast: false
       matrix:
@@ -52,19 +54,12 @@ jobs:
       - run: npm ci
       - run: npm run build
 
-      - uses: actions/upload-artifact@v4
+      - name: Upload build artifacts
+        uses: actions/upload-artifact@v4
         with:
           name: artifacts-${{ matrix.os }}
-          path: |
-            dist/*.AppImage
-            dist/*.deb
-            dist/*.dmg
-            dist/*.exe
-            dist/*.zip
-            dist/*.blockmap
-            dist/latest*.yml
-            dist/builder-debug.yml
-          if-no-files-found: ignore
+          path: dist/
+          if-no-files-found: error
 
 
   release:
@@ -78,15 +73,36 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - uses: actions/download-artifact@v4
+      - name: Download artifacts
+        uses: actions/download-artifact@v4
         with:
           path: artifacts
 
       - name: Create GitHub Release
-        uses: softprops/action-gh-release@v2
-        with:
-          tag_name: ${{ inputs.tag }}
-          files: artifacts/**/*
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -e
+
+          TAG="${{ inputs.tag }}"
+
+          echo "Creating release: $TAG"
+
+          gh release create "$TAG" \
+            --repo "$GITHUB_REPOSITORY" \
+            --title "$TAG" \
+            --notes "Automated release"
+
+          echo "Uploading artifacts..."
+
+          find artifacts -type f | sort | while read file; do
+            echo "Uploading: $file"
+            gh release upload "$TAG" "$file" \
+              --repo "$GITHUB_REPOSITORY" \
+              --clobber
+          done
+
+          echo "Release completed."
 
 
   cleanup:
@@ -95,7 +111,7 @@ jobs:
     permissions:
       contents: write
 
-    if: ${{ always() && needs.release.result != 'success' }}
+    if: ${{ failure() && needs.release.result == 'failure' }}
 
     steps:
       - name: Cleanup tag and release (best-effort)
@@ -106,9 +122,9 @@ jobs:
 
           TAG="${{ inputs.tag }}"
 
-          echo "::warning::Cleaning up release state for ${TAG}"
+          echo "::warning::Cleaning up failed release: ${TAG}"
 
-          gh release delete "${TAG}" --yes --repo "${GITHUB_REPOSITORY}" 2>/dev/null
-          gh api -X DELETE repos/${GITHUB_REPOSITORY}/git/refs/tags/${TAG} 2>/dev/null
+          gh release delete "$TAG" --yes --repo "${GITHUB_REPOSITORY}" 2>/dev/null || true
+          gh api -X DELETE repos/${GITHUB_REPOSITORY}/git/refs/tags/"$TAG" 2>/dev/null || true
 
-          echo "Cleanup completed (best-effort)"
+          echo "Cleanup finished."
