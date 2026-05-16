@@ -1,0 +1,54 @@
+{
+  "name": "ncm-desktop",
+  "appId": "com.netease.cloud-music",
+  "productName": "ncm desktop",
+  "version": "1.0.0",
+  "description": "An unofficial desktop client for NetEase Cloud Music",
+  "main": "src/main.js",
+  "scripts": {
+    "start": "electron .",
+    "build": "electron-builder --publish never"
+  },
+  "build": {
+    "linux": {
+      "target": [
+        "AppImage",
+        "deb",
+        "zip"
+      ],
+      "category": "Audio",
+      "artifactName": "${name}_${version}_linux.${ext}"
+    },
+    "mac": {
+      "target": [
+        "dmg",
+        "zip"
+      ],
+      "artifactName": "${name}_${version}_macos.${ext}"
+    },
+    "win": {
+      "target": [
+        "nsis",
+        "zip"
+      ],
+      "artifactName": "${name}_${version}_win.${ext}"
+    },
+    "extraFiles": [
+      "com.netease.cloud-music.desktop"
+    ]
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/lonerOrz/ncm-desktop.git"
+  },
+  "keywords": [
+    "Electron",
+    "NetEase",
+    "Cloud Music"
+  ],
+  "license": "GPL-3.0",
+  "devDependencies": {
+    "electron": "^40.8.5",
+    "electron-builder": "^26.8.1"
+  }
+}
