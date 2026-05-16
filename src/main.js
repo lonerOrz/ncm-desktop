@@ -1,4 +1,4 @@
-const { app, BrowserWindow, Tray, Menu, nativeImage, session } = require("electron");
+const { app, BrowserWindow, Tray, Menu, nativeImage, session, dialog } = require("electron");
 const path = require("path");
 const fs = require("fs");
 
@@ -111,6 +111,20 @@ function updateTrayMenu() {
         },
         { type: "separator" },
         {
+            label: "Reload",
+            click: () => mainWindow?.webContents?.reload(),
+        },
+        {
+            label: "DevTools",
+            click: () => mainWindow?.webContents?.toggleDevTools(),
+        },
+        { type: "separator" },
+        {
+            label: "About ncm-desktop",
+            click: () => showAboutDialog(),
+        },
+        { type: "separator" },
+        {
             label: "Quit",
             click: () => {
                 isQuitting = true;
@@ -119,6 +133,85 @@ function updateTrayMenu() {
         },
     ]);
     tray.setContextMenu(menu);
+}
+
+function showAboutDialog() {
+    const iconBase64 = fs.readFileSync(getIconPath()).toString("base64");
+
+    const html = `<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
+      text-align: center;
+      padding: 36px 40px 0;
+      -webkit-font-smoothing: antialiased;
+      background: #fff;
+    }
+    img { width: 64px; height: 64px; border-radius: 14px; margin-bottom: 14px; }
+    h1 { font-size: 17px; font-weight: 600; color: #1a1a1a; margin-bottom: 2px; }
+    .version { font-size: 12px; color: #888; margin-bottom: 18px; }
+    .desc { font-size: 13px; color: #555; line-height: 1.6; margin-bottom: 14px; }
+    .link { font-size: 12px; color: #999; }
+    .link a { color: #007aff; text-decoration: none; }
+    .link a:hover { text-decoration: underline; }
+    .footer {
+      position: fixed; bottom: 0; left: 0; right: 0;
+      padding: 14px 40px;
+      border-top: 1px solid #f0f0f0;
+      text-align: right;
+    }
+    button {
+      font-size: 13px; padding: 6px 28px;
+      border: 1px solid #ddd; border-radius: 6px;
+      background: #fafafa; cursor: pointer; color: #333;
+    }
+    button:hover { background: #f0f0f0; }
+    button:active { background: #e8e8e8; }
+  </style>
+</head>
+<body>
+  <img src="data:image/png;base64,${iconBase64}" alt="ncm-desktop">
+  <h1>ncm-desktop</h1>
+  <p class="version">Version ${app.getVersion()}</p>
+  <p class="desc">An unofficial desktop client<br>for NetEase Cloud Music</p>
+  <p class="link"><a href="#" id="ghLink">github.com/lonerOrz/ncm-desktop</a></p>
+  <div class="footer"><button id="okBtn">OK</button></div>
+  <script>
+    document.getElementById("okBtn").addEventListener("click", () => window.close());
+    document.getElementById("ghLink").addEventListener("click", (e) => {
+      e.preventDefault();
+      window.open("https://github.com/lonerOrz/ncm-desktop");
+    });
+  </script>
+</body>
+</html>`;
+
+    const win = new BrowserWindow({
+        width: 380,
+        height: 350,
+        resizable: false,
+        maximizable: false,
+        minimizable: false,
+        title: "About ncm-desktop",
+        parent: mainWindow,
+        webPreferences: {
+            contextIsolation: false,
+            nodeIntegration: false,
+        },
+    });
+
+    win.loadURL(`data:text/html;charset=utf-8,${encodeURIComponent(html)}`);
+
+    win.webContents.setWindowOpenHandler(() => {
+        require("electron").shell.openExternal("https://github.com/lonerOrz/ncm-desktop");
+        return { action: "deny" };
+    });
+
+    win.removeMenu();
 }
 
 function createTray() {
