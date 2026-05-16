@@ -41,10 +41,14 @@
 
             installPhase = ''
               mkdir -p $out/bin $out/lib/ncm-desktop
+              mkdir -p $out/share/applications
+              mkdir -p $out/share/icons/hicolor/512x512/apps
 
               cp ${./src/main.js}    $out/lib/ncm-desktop/main.js
               cp ${./src/preload.js} $out/lib/ncm-desktop/preload.js
               cp ${./icon.png}       $out/lib/ncm-desktop/icon.png
+              cp ${./icon.png}       $out/share/icons/hicolor/512x512/apps/com.netease.cloud-music.png
+              cp ${./com.netease.cloud-music.desktop} $out/share/applications/com.netease.cloud-music.desktop
 
               makeWrapper ${pkgs.electron}/bin/electron $out/bin/ncm \
                 --add-flags "$out/lib/ncm-desktop/main.js" \
