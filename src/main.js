@@ -1,6 +1,7 @@
-const { app, BrowserWindow, Tray, Menu, nativeImage, session, dialog } = require("electron");
+const { app, BrowserWindow, Tray, Menu, nativeImage, session, dialog, ipcMain, Notification } = require("electron");
 const path = require("path");
 const fs = require("fs");
+const https = require("https");
 
 const DEFAULT_URL = "https://music.163.com/st/webplayer";
 const targetUrl = process.argv[2] || DEFAULT_URL;
@@ -40,6 +41,88 @@ function getIconPath() {
     return path.join(__dirname, "..", "icon.png");
 }
 
+function injectTrackDetector() {
+    mainWindow?.webContents.executeJavaScript(`
+        var __ncmLastTitle = '';
+        setInterval(function() {
+            try {
+                var ms = navigator.mediaSession;
+                if (ms && ms.metadata && ms.metadata.title) {
+                    var t = ms.metadata.title;
+                    if (t !== __ncmLastTitle) {
+                        __ncmLastTitle = t;
+                        window.__ncmTrackUpdate({ 
+                            title: t, 
+                            artist: ms.metadata.artist || 'Now Playing'
+                        });
+                    }
+                }
+            } catch(e) {}
+        }, 3000);
+    `).catch(() => {});
+}
+
+ipcMain.on("track-update", (event, data) => {
+    if (!data || !data.title) return;
+    const n = new Notification({ 
+        title: data.title, 
+        body: data.artist, 
+        icon: getIconPath() 
+    });
+    n.on("click", () => {
+        mainWindow?.show();
+        mainWindow?.focus();
+    });
+    n.show();
+});
+
+function compareVersions(a, b) {
+    const pa = a.split(".").map(Number);
+    const pb = b.split(".").map(Number);
+    for (let i = 0; i < 3; i++) {
+        if (pa[i] > pb[i]) return 1;
+        if (pa[i] < pb[i]) return -1;
+    }
+    return 0;
+}
+
+function checkForUpdates() {
+    const statePath = path.join(app.getPath("userData"), "update-state.json");
+    let state = {};
+    try { state = JSON.parse(fs.readFileSync(statePath, "utf8")); } catch {}
+
+    const req = https.get("https://api.github.com/repos/lonerOrz/ncm-desktop/releases/latest", {
+        headers: { "User-Agent": "ncm-desktop", Accept: "application/vnd.github.v3+json" },
+        timeout: 10000,
+    }, (res) => {
+        let body = "";
+        res.on("data", (c) => body += c);
+        res.on("end", () => {
+            try {
+                const release = JSON.parse(body);
+                const latest = release.tag_name.replace(/^v/, "");
+                const current = app.getVersion();
+
+                if (latest !== state.checkedVersion && compareVersions(latest, current) > 0) {
+                    const n = new Notification({
+                        title: "ncm-desktop Update Available",
+                        body: `v${latest} released (current: v${current})`,
+                    });
+                    n.on("click", () => {
+                        require("electron").shell.openExternal("https://github.com/lonerOrz/ncm-desktop/releases/latest");
+                    });
+                    n.show();
+                }
+
+                state.checkedVersion = latest;
+                fs.writeFileSync(statePath, JSON.stringify(state));
+            } catch {}
+        });
+    });
+    req.on("error", () => {});
+    req.end();
+}
+
 function createWindow() {
     const saved = loadWindowState();
 
@@ -64,6 +147,10 @@ function createWindow() {
     mainWindow.webContents.userAgent =
         "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36";
     mainWindow.loadURL(targetUrl);
+
+    mainWindow.webContents.on("did-finish-load", () => {
+        injectTrackDetector();
+    });
 
     mainWindow.on("close", (event) => {
         if (!isQuitting) {
@@ -249,6 +336,7 @@ if (!gotTheLock) {
 app.whenReady().then(() => {
     createWindow();
     createTray();
+    checkForUpdates();
 
     app.on("activate", function () {
         if (BrowserWindow.getAllWindows().length === 0) {
