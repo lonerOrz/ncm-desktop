@@ -10,6 +10,9 @@
     "build": "electron-builder --publish never"
   },
   "build": {
+    "directories": {
+      "output": "dist/release"
+    },
     "linux": {
       "target": [
         "AppImage",
