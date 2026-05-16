@@ -1,4 +1,4 @@
-# ncm desktop
+# ncm-desktop
 
 > **Disclaimer**: This is an **unofficial** third-party desktop client. Not affiliated with NetEase, Inc. If you are a NetEase representative and find this project objectionable, please open an issue and it will be removed promptly.
 

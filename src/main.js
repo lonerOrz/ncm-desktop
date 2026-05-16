@@ -61,7 +61,7 @@ function updateTrayMenu() {
     const visible = mainWindow?.isVisible() ?? true;
     const menu = Menu.buildFromTemplate([
         {
-            label: visible ? "Hide ncm desktop" : "Show ncm desktop",
+            label: visible ? "Hide ncm-desktop" : "Show ncm-desktop",
             click: () => {
                 if (mainWindow?.isVisible()) {
                     mainWindow.hide();
@@ -85,7 +85,7 @@ function updateTrayMenu() {
 function createTray() {
     const icon = nativeImage.createFromPath(getIconPath());
     tray = new Tray(icon.resize({ width: 24, height: 24 }));
-    tray.setToolTip("ncm desktop");
+    tray.setToolTip("ncm-desktop");
 
     updateTrayMenu();
 

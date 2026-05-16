@@ -1,7 +1,7 @@
 {
   "name": "ncm-desktop",
   "appId": "com.netease.cloud-music",
-  "productName": "ncm desktop",
+  "productName": "ncm-desktop",
   "version": "1.0.0",
   "description": "An unofficial desktop client for NetEase Cloud Music",
   "main": "src/main.js",
