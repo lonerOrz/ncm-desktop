@@ -9,6 +9,31 @@ let mainWindow = null;
 let tray = null;
 let isQuitting = false;
 
+const stateFile = path.join(app.getPath("userData"), "window-state.json");
+
+let saveTimer = null;
+function scheduleSave() {
+    if (saveTimer) clearTimeout(saveTimer);
+    saveTimer = setTimeout(saveWindowState, 300);
+}
+
+function saveWindowState() {
+    if (!mainWindow) return;
+    const bounds = mainWindow.getBounds();
+    const maximized = mainWindow.isMaximized();
+    try {
+        fs.writeFileSync(stateFile, JSON.stringify({ ...bounds, maximized }));
+    } catch {}
+}
+
+function loadWindowState() {
+    try {
+        return JSON.parse(fs.readFileSync(stateFile, "utf8"));
+    } catch {
+        return null;
+    }
+}
+
 function getIconPath() {
     const local = path.join(__dirname, "icon.png");
     if (fs.existsSync(local)) return local;
@@ -16,16 +41,25 @@ function getIconPath() {
 }
 
 function createWindow() {
+    const saved = loadWindowState();
+
     mainWindow = new BrowserWindow({
-        width: 1920,
-        height: 1080,
+        width: saved?.width || 1920,
+        height: saved?.height || 1080,
+        x: saved?.x,
+        y: saved?.y,
         icon: getIconPath(),
         webPreferences: {
             preload: path.join(__dirname, "preload.js"),
             contextIsolation: false,
             webviewTag: true,
+            spellcheck: false,
         },
     });
+
+    if (saved?.maximized) {
+        mainWindow.maximize();
+    }
 
     mainWindow.webContents.userAgent =
         "Mozilla/5.0 (X11; Linux x86_64; rv:123.0) Gecko/20100101 Firefox/123.0";
@@ -37,6 +71,11 @@ function createWindow() {
             mainWindow.hide();
         }
     });
+
+    mainWindow.on("resize", scheduleSave);
+    mainWindow.on("move", scheduleSave);
+    mainWindow.on("maximize", scheduleSave);
+    mainWindow.on("unmaximize", scheduleSave);
 
     session.defaultSession.webRequest.onBeforeRequest((details, callback) => {
         const url = details.url.toLowerCase();
@@ -101,6 +140,19 @@ function createTray() {
     });
 }
 
+const gotTheLock = app.requestSingleInstanceLock();
+if (!gotTheLock) {
+    app.quit();
+} else {
+    app.on("second-instance", () => {
+        if (mainWindow) {
+            if (mainWindow.isMinimized()) mainWindow.restore();
+            mainWindow.show();
+            mainWindow.focus();
+        }
+    });
+}
+
 app.whenReady().then(() => {
     createWindow();
     createTray();
@@ -118,5 +170,4 @@ app.on("browser-window-created", function (e, window) {
     window.setMenu(null);
 });
 
-// Don't quit — tray keeps the app alive when all windows are hidden
 app.on("window-all-closed", function () {});
