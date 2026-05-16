@@ -34,12 +34,11 @@
       "target": [
         "nsis"
       ],
-      "artifactName": "${name}_${version}_win.${ext}",
-      "nsis": {
-        "oneClick": false,
-        "allowToChangeInstallationDirectory": true,
-        "installDir": "$PROGRAMFILES64\\${name}"
-      }
+      "artifactName": "${name}_${version}_win.${ext}"
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true
     }
   },
   "author": {
