@@ -66,11 +66,9 @@
                 --add-flags "$out/lib/${packageJSON.name}/main.js" \
                 --add-flags "${url}" \
                 --set NIXOS_OZONE_WL 1 \
-                --set ELECTRON_DISABLE_GPU 1 \
-                --set LIBGL_ALWAYS_SOFTWARE 1 \
-                --set MESA_LOADER_DRIVER_OVERRIDE llvmpipe \
-                --set ELECTRON_NO_SANDBOX 1 \
-                --set ELECTRON_DISABLE_SANDBOX 1
+                --set ELECTRON_OZONE_PLATFORM_HINT auto \
+                --set LIBGL_ALWAYS_INDIRECT 1 \
+                --add-flags "--enable-features=UseOzonePlatform --ozone-platform=x11 --enable-wayland-ime --disable-gpu"
             '';
 
             meta = {
