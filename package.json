@@ -37,6 +37,10 @@
       "com.netease.cloud-music.desktop"
     ]
   },
+  "author": {
+    "name": "lonerOrz",
+    "email": "lonerOrz@users.noreply.github.com"
+  },
   "repository": {
     "type": "git",
     "url": "git+https://github.com/lonerOrz/ncm-desktop.git"
