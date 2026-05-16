@@ -40,21 +40,31 @@
             nativeBuildInputs = [
               pkgs.makeWrapper
               pkgs.electron
+              pkgs.copyDesktopItems
+            ];
+
+            desktopItems = [
+              (pkgs.makeDesktopItem {
+                name = "ncm-desktop";
+                desktopName = "NetEase Cloud Music";
+                exec = "ncm %U";
+                icon = "com.netease-cloud-music";
+                categories = [
+                  "AudioVideo"
+                  "Music"
+                ];
+                terminal = false;
+                startupWMClass = "NetEase Cloud Music";
+              })
             ];
 
             installPhase = ''
               runHook preInstall
 
-              # application code
               mkdir -p $out/lib/${packageJSON.name}
               cp -r ${./src}/* $out/lib/${packageJSON.name}/
               cp ${./icon.png} $out/lib/${packageJSON.name}/icon.png
 
-              # xdg desktop entry
-              install -Dm644 ${./com.netease.cloud-music.desktop} \
-                $out/share/applications/com.netease.cloud-music.desktop
-
-              # icon (xdg-compliant path)
               install -Dm644 ${./icon.png} \
                 $out/share/icons/hicolor/512x512/apps/com.netease.cloud-music.png
 
