@@ -1,0 +1,60 @@
+name: Build Artifacts
+
+on:
+  workflow_dispatch:
+    inputs:
+      linux:
+        description: "Build for Linux"
+        type: boolean
+        default: true
+      windows:
+        description: "Build for Windows"
+        type: boolean
+        default: true
+      macos:
+        description: "Build for macOS"
+        type: boolean
+        default: true
+
+jobs:
+  build:
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            platform: linux
+            enabled: ${{ github.event.inputs.linux == 'true' }}
+          - os: windows-latest
+            platform: windows
+            enabled: ${{ github.event.inputs.windows == 'true' }}
+          - os: macos-latest
+            platform: macos
+            enabled: ${{ github.event.inputs.macos == 'true' }}
+
+    if: ${{ matrix.enabled }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build application
+        run: npm run build
+
+      - name: Upload build artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.platform }}-build
+          path: |
+            dist/release/*.AppImage
+            dist/release/*.deb
+            dist/release/*.dmg
+            dist/release/*.exe
+          if-no-files-found: error

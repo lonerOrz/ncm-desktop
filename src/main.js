@@ -163,13 +163,20 @@ function checkForUpdates() {
 function createWindow() {
   const saved = loadWindowState();
 
-  mainWindow = new BrowserWindow({
-    width: saved?.width || 1920,
-    height: saved?.height || 1080,
-    x: saved?.x,
-    y: saved?.y,
-    icon: getIconPath(),
-    webPreferences: {
+    mainWindow = new BrowserWindow({
+        width: saved?.width || 1920,
+        height: saved?.height || 1080,
+        x: saved?.x,
+        y: saved?.y,
+        icon: getIconPath(),
+        titleBarStyle: process.platform === "win32" ? "hidden" : "default",
+        titleBarOverlay: process.platform === "win32" ? {
+            color: followSystemTheme && nativeTheme.shouldUseDarkColors ? "#1e1e1e" : "#ffffff",
+            symbolColor: followSystemTheme && nativeTheme.shouldUseDarkColors ? "#ffffff" : "#000000",
+            height: 32
+        } : false,
+        webPreferences: {
+
       preload: path.join(__dirname, "preload.js"),
       contextIsolation: false,
       webviewTag: true,
@@ -211,26 +218,37 @@ function createWindow() {
 
   mainWindow.on("resize", scheduleSave);
   mainWindow.on("move", scheduleSave);
-  mainWindow.on("maximize", scheduleSave);
-  mainWindow.on("unmaximize", scheduleSave);
+    mainWindow.on("maximize", scheduleSave);
+    mainWindow.on("unmaximize", scheduleSave);
 
-  session.defaultSession.webRequest.onBeforeRequest((details, callback) => {
-    const url = details.url.toLowerCase();
-    const adDomains = [
-      "doubleclick.net",
-      "google-analytics.com",
-      "googleadservices.com",
-      "googlesyndication.com",
-      "adnxs.com",
-      "amazon-adsystem.com",
-      "advertising.com",
-    ];
-    if (adDomains.some((domain) => url.includes(domain))) {
-      callback({ cancel: true });
-    } else {
-      callback({ cancel: false });
+    function updateTitleBar() {
+        if (process.platform === "win32" && mainWindow) {
+            const isDark = followSystemTheme && nativeTheme.shouldUseDarkColors;
+            mainWindow.setTitleBarOverlay({
+                color: isDark ? "#1e1e1e" : "#ffffff",
+                symbolColor: isDark ? "#ffffff" : "#000000"
+            });
+        }
     }
-  });
+
+    // Notify theme change to renderer
+    nativeTheme.on("updated", () => {
+        if (followSystemTheme) {
+            mainWindow?.webContents.send("theme-changed", nativeTheme.shouldUseDarkColors);
+            updateTitleBar();
+        }
+    });
+
+    ipcMain.handle("get-theme", () => {
+        return followSystemTheme && nativeTheme.shouldUseDarkColors;
+    });
+
+    // Theme toggle in tray
+    const updateThemeState = () => {
+        mainWindow?.webContents.send("theme-changed", followSystemTheme && nativeTheme.shouldUseDarkColors);
+        updateTitleBar();
+    };
+
 }
 
 function updateTrayMenu() {
@@ -246,17 +264,16 @@ function updateTrayMenu() {
         }
       },
     },
-    {
-      label: `Follow System Theme: ${followSystemTheme ? "[ON]" : "[OFF]"}`,
-      click: () => {
-        followSystemTheme = !followSystemTheme;
-        scheduleSave();
-        mainWindow?.webContents.send(
-          "theme-changed",
-          followSystemTheme && nativeTheme.shouldUseDarkColors,
-        );
-        updateTrayMenu();
-      },
+        {
+            label: `Follow System Theme: ${followSystemTheme ? "[ON]" : "[OFF]"}`,
+            click: () => {
+                followSystemTheme = !followSystemTheme;
+                scheduleSave();
+                updateThemeState();
+                updateTrayMenu();
+            },
+        },
+
     },
     { type: "separator" },
     {
