@@ -65,3 +65,32 @@ npm install
 npm run build      # Build package → dist/
 npm start          # Or run directly without building
 ```
+
+## Custom Styling & Scripting
+
+You can inject custom CSS styles and JavaScript scripts to customize ncm-desktop's appearance and behavior.
+
+### How it works
+- **Custom Folder**: The custom files are stored in `~/.config/ncm-desktop/custom/` on Linux (or the application's configuration directory on other platforms).
+- **Easy Access**: Right-click the system tray icon and select **Open Custom Folder** to open the folder directly in your system file manager.
+- **Alphabetical Order**: All `.css` and `.js` files in the folder are automatically loaded in alphabetical order.
+- **CSS Hot Reloading**: Editing CSS files will automatically apply the new styles inside the running application instantly, without needing a restart.
+- **Safe JS Execution**: Custom JS scripts are wrapped inside a safe sandbox with error-handling to prevent scripts from crashing the main window.
+
+### Example
+1. Click **Open Custom Folder** from the tray menu.
+2. Create a file named `01-custom.css` to change the background or tweak styling:
+   ```css
+   /* Change scrollbar style */
+   ::-webkit-scrollbar {
+     width: 6px !important;
+   }
+   ::-webkit-scrollbar-thumb {
+     background-color: #e91e63 !important;
+     border-radius: 3px !important;
+   }
+   ```
+3. Create a file named `02-custom.js` to execute custom behavior:
+   ```javascript
+   console.log("Custom script loaded successfully!");
+   ```
