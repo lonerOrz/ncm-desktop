@@ -9,22 +9,25 @@ const {
   ipcMain,
   Notification,
   nativeTheme,
+  shell,
 } = require("electron");
+app.setName("ncm-desktop");
 const path = require("path");
 const fs = require("fs");
 const https = require("https");
 
 const DEFAULT_URL = "https://music.163.com/st/webplayer";
 const targetUrl = process.argv[2] || DEFAULT_URL;
+const stateFile = path.join(app.getPath("userData"), "window-state.json");
+const customDir = path.join(app.getPath("userData"), "custom");
 
 let mainWindow = null;
 let tray = null;
 let isQuitting = false;
 let followSystemTheme = true;
-
-const stateFile = path.join(app.getPath("userData"), "window-state.json");
-
 let saveTimer = null;
+let injectedCssKeys = [];
+let customDirWatcher = null;
 function scheduleSave() {
   if (saveTimer) clearTimeout(saveTimer);
   saveTimer = setTimeout(saveWindowState, 300);
@@ -58,6 +61,84 @@ function getIconPath() {
   const local = path.join(__dirname, "icon.png");
   if (fs.existsSync(local)) return local;
   return path.join(__dirname, "..", "icon.png");
+}
+
+function initCustomDir() {
+  if (!fs.existsSync(customDir)) {
+    try {
+      fs.mkdirSync(customDir, { recursive: true });
+    } catch {}
+  }
+}
+
+async function loadCustomResources() {
+  if (!mainWindow) return;
+  initCustomDir();
+
+  try {
+    const files = fs.readdirSync(customDir).sort();
+
+    for (const key of injectedCssKeys) {
+      try {
+        await mainWindow.webContents.removeInsertedCSS(key);
+      } catch {}
+    }
+    injectedCssKeys = [];
+
+    const cssFiles = files.filter(f => f.endsWith(".css"));
+    for (const file of cssFiles) {
+      try {
+        const filePath = path.join(customDir, file);
+        const cssContent = fs.readFileSync(filePath, "utf8");
+        const key = await mainWindow.webContents.insertCSS(cssContent);
+        injectedCssKeys.push(key);
+      } catch (err) {
+        console.error(`Failed to inject custom CSS [${file}]:`, err);
+      }
+    }
+
+    const jsFiles = files.filter(f => f.endsWith(".js"));
+    for (const file of jsFiles) {
+      try {
+        const filePath = path.join(customDir, file);
+        const jsContent = fs.readFileSync(filePath, "utf8");
+        const safeJs = `
+          (function() {
+            try {
+              ${jsContent}
+            } catch (e) {
+              console.error("Error in custom script [${file}]:", e);
+            }
+          })();
+        `;
+        mainWindow.webContents.executeJavaScript(safeJs).catch(err => {
+          console.error(`Failed to execute custom JS [${file}]:`, err);
+        });
+      } catch (err) {
+        console.error(`Failed to load custom JS [${file}]:`, err);
+      }
+    }
+  } catch (e) {
+    console.error("Failed to load custom resources:", e);
+  }
+}
+
+function watchCustomDirectory() {
+  if (customDirWatcher) {
+    try {
+      customDirWatcher.close();
+    } catch {}
+  }
+
+  try {
+    customDirWatcher = fs.watch(customDir, (eventType, filename) => {
+      if (filename && filename.endsWith(".css")) {
+        loadCustomResources();
+      }
+    });
+  } catch (err) {
+    console.error("Failed to watch custom directory:", err);
+  }
 }
 
 function injectTrackDetector() {
@@ -187,6 +268,8 @@ function createWindow() {
 
   mainWindow.webContents.on("did-finish-load", () => {
     injectTrackDetector();
+    loadCustomResources();
+    watchCustomDirectory();
   });
 
   mainWindow.on("close", (event) => {
@@ -249,6 +332,13 @@ function updateTrayMenu() {
     {
       label: "DevTools",
       click: () => mainWindow?.webContents?.toggleDevTools(),
+    },
+    { type: "separator" },
+    {
+      label: "Open Custom Folder",
+      click: () => {
+        shell.openPath(customDir);
+      },
     },
     { type: "separator" },
     {
@@ -400,6 +490,7 @@ if (!gotTheLock) {
 }
 
 app.whenReady().then(() => {
+  initCustomDir();
   createWindow();
   createTray();
   checkForUpdates();
