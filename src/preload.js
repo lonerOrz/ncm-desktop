@@ -1,7 +1,6 @@
-// All of the Node.js APIs are available in the preload process.
-// It has the same sandbox as a Chrome extension.
 const { ipcRenderer } = require("electron");
 
+// Dark 模式
 const DARK_STYLE = `
     html.ncm-dark-theme {
         filter: invert(0.9) hue-rotate(180deg) !important;
@@ -23,6 +22,21 @@ function updateTheme(isDark) {
   }
 }
 
+// 媒体监控
+let lastTitle = "";
+function initMediaMonitor() {
+  setInterval(() => {
+    const meta = navigator.mediaSession?.metadata;
+    if (meta && meta.title && meta.title !== lastTitle) {
+      lastTitle = meta.title;
+      ipcRenderer.send("track-update", {
+        title: meta.title,
+        artist: meta.artist || "Unknown Artist",
+      });
+    }
+  }, 3000);
+}
+
 ipcRenderer.on("theme-changed", (event, isDark) => {
   updateTheme(isDark);
 });
@@ -32,11 +46,11 @@ window.__ncmTrackUpdate = (data) => {
 };
 
 window.addEventListener("DOMContentLoaded", () => {
-  // Inject dark theme styles
   const style = document.createElement("style");
   style.innerHTML = DARK_STYLE;
   document.head.appendChild(style);
 
-  // Initial theme sync
   ipcRenderer.invoke("get-theme").then(updateTheme);
+
+  initMediaMonitor();
 });

@@ -11,10 +11,11 @@ const {
   nativeTheme,
   shell,
 } = require("electron");
-app.setName("ncm-desktop");
 const path = require("path");
 const fs = require("fs");
 const https = require("https");
+
+app.setName("ncm-desktop");
 
 const DEFAULT_URL = "https://music.163.com/st/webplayer";
 const targetUrl = process.argv[2] || DEFAULT_URL;
@@ -28,6 +29,15 @@ let followSystemTheme = true;
 let saveTimer = null;
 let injectedCssKeys = [];
 let customDirWatcher = null;
+
+// --- Linux 适配 ---
+if (process.platform === "linux") {
+  app.commandLine.appendSwitch("enable-features", "UseOzonePlatform");
+  app.commandLine.appendSwitch("ozone-platform-hint", "auto");
+  app.commandLine.appendSwitch("enable-wayland-ime");
+}
+
+// --- 窗口状态管理 ---
 function scheduleSave() {
   if (saveTimer) clearTimeout(saveTimer);
   saveTimer = setTimeout(saveWindowState, 300);
@@ -63,6 +73,7 @@ function getIconPath() {
   return path.join(__dirname, "..", "icon.png");
 }
 
+// --- 自定义资源管理 ---
 function initCustomDir() {
   if (!fs.existsSync(customDir)) {
     try {
@@ -85,7 +96,7 @@ async function loadCustomResources() {
     }
     injectedCssKeys = [];
 
-    const cssFiles = files.filter(f => f.endsWith(".css"));
+    const cssFiles = files.filter((f) => f.endsWith(".css"));
     for (const file of cssFiles) {
       try {
         const filePath = path.join(customDir, file);
@@ -97,7 +108,7 @@ async function loadCustomResources() {
       }
     }
 
-    const jsFiles = files.filter(f => f.endsWith(".js"));
+    const jsFiles = files.filter((f) => f.endsWith(".js"));
     for (const file of jsFiles) {
       try {
         const filePath = path.join(customDir, file);
@@ -111,7 +122,7 @@ async function loadCustomResources() {
             }
           })();
         `;
-        mainWindow.webContents.executeJavaScript(safeJs).catch(err => {
+        mainWindow.webContents.executeJavaScript(safeJs).catch((err) => {
           console.error(`Failed to execute custom JS [${file}]:`, err);
         });
       } catch (err) {
@@ -132,7 +143,7 @@ function watchCustomDirectory() {
 
   try {
     customDirWatcher = fs.watch(customDir, (eventType, filename) => {
-      if (filename && filename.endsWith(".css")) {
+      if (filename && (filename.endsWith(".css") || filename.endsWith(".js"))) {
         loadCustomResources();
       }
     });
@@ -141,31 +152,13 @@ function watchCustomDirectory() {
   }
 }
 
-function injectTrackDetector() {
-  mainWindow?.webContents
-    .executeJavaScript(
-      `
-        var __ncmLastTitle = '';
-        setInterval(function() {
-            try {
-                var ms = navigator.mediaSession;
-                if (ms && ms.metadata && ms.metadata.title) {
-                    var t = ms.metadata.title;
-                    if (t !== __ncmLastTitle) {
-                        __ncmLastTitle = t;
-                        window.__ncmTrackUpdate({
-                            title: t,
-                            artist: ms.metadata.artist || 'Now Playing'
-                        });
-                    }
-                }
-            } catch(e) {}
-        }, 3000);
-    `,
-    )
-    .catch(() => {});
-}
+// --- 核心业务监听 ---
+// 注册主题请求处理
+ipcMain.handle("get-theme", () => {
+  return followSystemTheme && nativeTheme.shouldUseDarkColors;
+});
 
+// 注册通知监听
 ipcMain.on("track-update", (event, data) => {
   if (!data || !data.title) return;
   const n = new Notification({
@@ -180,6 +173,7 @@ ipcMain.on("track-update", (event, data) => {
   n.show();
 });
 
+// --- 版本检查 ---
 function compareVersions(a, b) {
   const pa = a.split(".").map(Number);
   const pb = b.split(".").map(Number);
@@ -241,33 +235,42 @@ function checkForUpdates() {
   req.end();
 }
 
+// --- 窗口创建 ---
 function createWindow() {
   const saved = loadWindowState();
 
-    mainWindow = new BrowserWindow({
-        width: saved?.width || 1920,
-        height: saved?.height || 1080,
-        x: saved?.x,
-        y: saved?.y,
-        icon: getIconPath(),
-        webPreferences: {
-            preload: path.join(__dirname, "preload.js"),
-            contextIsolation: false,
-            webviewTag: true,
-            spellcheck: false,
-        },
-    });
+  mainWindow = new BrowserWindow({
+    width: saved?.width || 1920,
+    height: saved?.height || 1080,
+    x: saved?.x,
+    y: saved?.y,
+    icon: getIconPath(),
+    autoHideMenuBar: true, // 隐藏菜单栏
+    show: false, // 配合 ready-to-show
+    webPreferences: {
+      preload: path.join(__dirname, "preload.js"),
+      contextIsolation: false,
+      webviewTag: true,
+      spellcheck: false,
+    },
+  });
 
   if (saved?.maximized) {
     mainWindow.maximize();
   }
 
+  // 彻底移除默认菜单
+  mainWindow.setMenu(null);
+
   mainWindow.webContents.userAgent =
     "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36";
   mainWindow.loadURL(targetUrl);
 
+  mainWindow.once("ready-to-show", () => {
+    mainWindow.show();
+  });
+
   mainWindow.webContents.on("did-finish-load", () => {
-    injectTrackDetector();
     loadCustomResources();
     watchCustomDirectory();
   });
@@ -298,10 +301,7 @@ nativeTheme.on("updated", () => {
   }
 });
 
-ipcMain.handle("get-theme", () => {
-  return followSystemTheme && nativeTheme.shouldUseDarkColors;
-});
-
+// --- 托盘与 About ---
 function updateTrayMenu() {
   const visible = mainWindow?.isVisible() ?? true;
   const menu = Menu.buildFromTemplate([
@@ -476,6 +476,7 @@ function createTray() {
   });
 }
 
+// --- 启动流程 ---
 const gotTheLock = app.requestSingleInstanceLock();
 if (!gotTheLock) {
   app.quit();
@@ -508,4 +509,6 @@ app.on("browser-window-created", function (e, window) {
   window.setMenu(null);
 });
 
-app.on("window-all-closed", function () {});
+app.on("window-all-closed", function () {
+  if (process.platform !== "darwin") app.quit();
+});
