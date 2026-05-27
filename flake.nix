@@ -79,10 +79,14 @@
               makeWrapper ${pkgs.electron}/bin/electron $out/bin/ncm \
                 --add-flags "$out/lib/${packageJSON.name}/main.js" \
                 --add-flags "${url}" \
-                --set NIXOS_OZONE_WL 1 \
-                --set ELECTRON_OZONE_PLATFORM_HINT auto \
-                --set LIBGL_ALWAYS_INDIRECT 1 \
-                --add-flags "--enable-features=UseOzonePlatform --ozone-platform=x11 --enable-wayland-ime --disable-gpu"
+                --set GTK_IM_MODULE "fcitx" \
+                --set QT_IM_MODULE "fcitx" \
+                --set XMODIFIERS "@im=fcitx" \
+                --set ELECTRON_OZONE_PLATFORM_HINT "auto" \
+                --add-flags "--enable-features=UseOzonePlatform,WaylandWindowDecorations" \
+                --add-flags "--ozone-platform-hint=auto" \
+                --add-flags "--enable-wayland-ime" \
+                --add-flags "--gtk-version=3"
             '';
 
             meta = {
