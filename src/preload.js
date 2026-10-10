@@ -1,4 +1,4 @@
-const { ipcRenderer } = require("electron");
+const { ipcRenderer, contextBridge } = require("electron");
 
 // Dark 模式
 const DARK_STYLE = `
@@ -41,9 +41,13 @@ ipcRenderer.on("theme-changed", (event, isDark) => {
   updateTheme(isDark);
 });
 
-window.__ncmTrackUpdate = (data) => {
-  ipcRenderer.send("track-update", data);
-};
+// 仅暴露必要、受控的 API 给页面（contextIsolation: true）
+contextBridge.exposeInMainWorld("ncm", {
+  getTheme: () => ipcRenderer.invoke("get-theme"),
+  onThemeChanged: (callback) =>
+    ipcRenderer.on("theme-changed", (_event, isDark) => callback(isDark)),
+  notifyTrack: (data) => ipcRenderer.send("track-update", data),
+});
 
 window.addEventListener("DOMContentLoaded", () => {
   const style = document.createElement("style");

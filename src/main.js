@@ -249,7 +249,7 @@ function createWindow() {
     show: false, // 配合 ready-to-show
     webPreferences: {
       preload: path.join(__dirname, "preload.js"),
-      contextIsolation: false,
+      contextIsolation: true,
       webviewTag: true,
       spellcheck: false,
     },
@@ -440,7 +440,7 @@ function showAboutDialog() {
     title: "About ncm-desktop",
     parent: mainWindow,
     webPreferences: {
-      contextIsolation: false,
+      contextIsolation: true,
       nodeIntegration: false,
     },
   });
