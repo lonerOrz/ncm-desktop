@@ -1,28 +1,6 @@
 const { ipcRenderer, contextBridge } = require("electron");
 
-// Dark 模式
-const DARK_STYLE = `
-    html.ncm-dark-theme {
-        filter: invert(0.9) hue-rotate(180deg) !important;
-    }
-    html.ncm-dark-theme img,
-    html.ncm-dark-theme video,
-    html.ncm-dark-theme iframe,
-    html.ncm-dark-theme .u-cover,
-    html.ncm-dark-theme [style*="background-image"] {
-        filter: invert(1) hue-rotate(180deg) !important;
-    }
-`;
-
-function updateTheme(isDark) {
-  if (isDark) {
-    document.documentElement.classList.add("ncm-dark-theme");
-  } else {
-    document.documentElement.classList.remove("ncm-dark-theme");
-  }
-}
-
-// 媒体监控
+// 媒体监控：轮询当前播放曲目并通过受控 IPC 上报给主进程发通知
 let lastTitle = "";
 function initMediaMonitor() {
   setInterval(() => {
@@ -37,24 +15,11 @@ function initMediaMonitor() {
   }, 3000);
 }
 
-ipcRenderer.on("theme-changed", (event, isDark) => {
-  updateTheme(isDark);
-});
-
 // 仅暴露必要、受控的 API 给页面（contextIsolation: true）
 contextBridge.exposeInMainWorld("ncm", {
-  getTheme: () => ipcRenderer.invoke("get-theme"),
-  onThemeChanged: (callback) =>
-    ipcRenderer.on("theme-changed", (_event, isDark) => callback(isDark)),
   notifyTrack: (data) => ipcRenderer.send("track-update", data),
 });
 
 window.addEventListener("DOMContentLoaded", () => {
-  const style = document.createElement("style");
-  style.innerHTML = DARK_STYLE;
-  document.head.appendChild(style);
-
-  ipcRenderer.invoke("get-theme").then(updateTheme);
-
   initMediaMonitor();
 });

@@ -4,11 +4,8 @@ const {
   Tray,
   Menu,
   nativeImage,
-  session,
-  dialog,
   ipcMain,
   Notification,
-  nativeTheme,
   shell,
 } = require("electron");
 const path = require("path");
@@ -25,7 +22,6 @@ const customDir = path.join(app.getPath("userData"), "custom");
 let mainWindow = null;
 let tray = null;
 let isQuitting = false;
-let followSystemTheme = true;
 let saveTimer = null;
 let injectedCssKeys = [];
 let customDirWatcher = null;
@@ -50,18 +46,14 @@ function saveWindowState() {
   try {
     fs.writeFileSync(
       stateFile,
-      JSON.stringify({ ...bounds, maximized, followSystemTheme }),
+      JSON.stringify({ ...bounds, maximized }),
     );
   } catch {}
 }
 
 function loadWindowState() {
   try {
-    const state = JSON.parse(fs.readFileSync(stateFile, "utf8"));
-    if (state.hasOwnProperty("followSystemTheme")) {
-      followSystemTheme = state.followSystemTheme;
-    }
-    return state;
+    return JSON.parse(fs.readFileSync(stateFile, "utf8"));
   } catch {
     return null;
   }
@@ -153,11 +145,6 @@ function watchCustomDirectory() {
 }
 
 // --- 核心业务监听 ---
-// 注册主题请求处理
-ipcMain.handle("get-theme", () => {
-  return followSystemTheme && nativeTheme.shouldUseDarkColors;
-});
-
 // 注册通知监听
 ipcMain.on("track-update", (event, data) => {
   if (!data || !data.title) return;
@@ -306,19 +293,6 @@ function createWindow() {
   mainWindow.on("unmaximize", scheduleSave);
 }
 
-function updateThemeState() {
-  mainWindow?.webContents.send(
-    "theme-changed",
-    followSystemTheme && nativeTheme.shouldUseDarkColors,
-  );
-}
-
-nativeTheme.on("updated", () => {
-  if (followSystemTheme) {
-    updateThemeState();
-  }
-});
-
 // --- 托盘与 About ---
 function updateTrayMenu() {
   const visible = mainWindow?.isVisible() ?? true;
@@ -331,15 +305,6 @@ function updateTrayMenu() {
         } else {
           mainWindow?.show();
         }
-      },
-    },
-    {
-      label: `Follow System Theme: ${followSystemTheme ? "[ON]" : "[OFF]"}`,
-      click: () => {
-        followSystemTheme = !followSystemTheme;
-        scheduleSave();
-        updateThemeState();
-        updateTrayMenu();
       },
     },
     { type: "separator" },
@@ -377,7 +342,6 @@ function updateTrayMenu() {
 
 function showAboutDialog() {
   const iconBase64 = fs.readFileSync(getIconPath()).toString("base64");
-  const isDark = followSystemTheme && nativeTheme.shouldUseDarkColors;
 
   const html = `<!DOCTYPE html>
 <html>
@@ -393,15 +357,6 @@ function showAboutDialog() {
       --border: #f0f0f0;
       --btn-bg: #fafafa;
       --btn-hover: #f0f0f0;
-    }
-    body.dark-theme {
-      --bg: #1e1e1e;
-      --text-main: #e0e0e0;
-      --text-sub: #aaa;
-      --text-desc: #ccc;
-      --border: #333;
-      --btn-bg: #2a2a2a;
-      --btn-hover: #383838;
     }
     body {
       font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
@@ -432,7 +387,7 @@ function showAboutDialog() {
     button:hover { background: var(--btn-hover); }
   </style>
 </head>
-<body class="${isDark ? "dark-theme" : ""}">
+<body>
   <img src="data:image/png;base64,${iconBase64}" alt="ncm-desktop">
   <h1>ncm-desktop</h1>
   <p class="version">Version ${app.getVersion()}</p>
