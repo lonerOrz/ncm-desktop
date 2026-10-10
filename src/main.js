@@ -15,7 +15,22 @@ const https = require("https");
 app.setName("ncm-desktop");
 
 const DEFAULT_URL = "https://music.163.com/st/webplayer";
-const targetUrl = process.argv[2] || DEFAULT_URL;
+
+// 仅允许加载网易云官方域名下的 https 地址，避免被命令行参数指向任意站点。
+function resolveTargetUrl(raw) {
+  try {
+    const url = new URL(raw);
+    if (
+      url.protocol === "https:" &&
+      (url.hostname === "music.163.com" || url.hostname.endsWith(".music.163.com"))
+    ) {
+      return raw;
+    }
+  } catch {}
+  return DEFAULT_URL;
+}
+
+const targetUrl = resolveTargetUrl(process.argv[2]);
 const stateFile = path.join(app.getPath("userData"), "window-state.json");
 const customDir = path.join(app.getPath("userData"), "custom");
 
@@ -247,7 +262,6 @@ function createWindow() {
     webPreferences: {
       preload: path.join(__dirname, "preload.js"),
       contextIsolation: true,
-      webviewTag: true,
       spellcheck: false,
     },
   });
