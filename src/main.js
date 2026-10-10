@@ -327,6 +327,12 @@ function updateTrayMenu() {
       click: () => mainWindow?.webContents?.reload(),
     },
     {
+      label: "Reload Custom",
+      click: () => {
+        if (mainWindow?.webContents) loadCustomResources();
+      },
+    },
+    {
       label: "DevTools",
       click: () => mainWindow?.webContents?.toggleDevTools(),
     },
