@@ -1,10 +1,11 @@
 [Desktop Entry]
+Type=Application
 Encoding=UTF-8
 Name=ncm-desktop
 Name[zh]=ncm-desktop
 Comment=ncm-desktop client
 Exec=ncm
-Icon=com.netease.cloud-music
+Icon=ncm-desktop
 StartupWMClass=NetEase Cloud Music
 Categories=Audio;Music;
 Keywords=NetEase;Music;Cloud;

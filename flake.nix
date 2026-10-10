@@ -41,7 +41,7 @@
               pkgs.makeWrapper
               pkgs.electron
               pkgs.copyDesktopItems
-              pkgs.pkgs.imagemagick
+              pkgs.imagemagick
             ];
 
             desktopItems = [

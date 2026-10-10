@@ -4,11 +4,9 @@ const {
   Tray,
   Menu,
   nativeImage,
-  session,
-  dialog,
   ipcMain,
   Notification,
-  nativeTheme,
+  screen,
   shell,
 } = require("electron");
 const path = require("path");
@@ -18,14 +16,28 @@ const https = require("https");
 app.setName("ncm-desktop");
 
 const DEFAULT_URL = "https://music.163.com/st/webplayer";
-const targetUrl = process.argv[2] || DEFAULT_URL;
+
+// 仅允许加载网易云官方域名下的 https 地址，避免被命令行参数指向任意站点。
+function resolveTargetUrl(raw) {
+  try {
+    const url = new URL(raw);
+    if (
+      url.protocol === "https:" &&
+      (url.hostname === "music.163.com" || url.hostname.endsWith(".music.163.com"))
+    ) {
+      return raw;
+    }
+  } catch {}
+  return DEFAULT_URL;
+}
+
+const targetUrl = resolveTargetUrl(process.argv[2]);
 const stateFile = path.join(app.getPath("userData"), "window-state.json");
 const customDir = path.join(app.getPath("userData"), "custom");
 
 let mainWindow = null;
 let tray = null;
 let isQuitting = false;
-let followSystemTheme = true;
 let saveTimer = null;
 let injectedCssKeys = [];
 let customDirWatcher = null;
@@ -50,18 +62,35 @@ function saveWindowState() {
   try {
     fs.writeFileSync(
       stateFile,
-      JSON.stringify({ ...bounds, maximized, followSystemTheme }),
+      JSON.stringify({ ...bounds, maximized }),
     );
   } catch {}
 }
 
+// 校验持久化的窗口位置是否落在某个显示器的可用区域内；
+// 多屏/分辨率变化后旧坐标可能跑到屏幕外，此时回退居中。
+function resolveWindowBounds(saved) {
+  if (saved && typeof saved.x === "number" && typeof saved.y === "number") {
+    const displays = screen.getAllDisplays();
+    const onScreen = displays.some((d) => {
+      const a = d.workArea;
+      return (
+        saved.x >= a.x &&
+        saved.y >= a.y &&
+        saved.x < a.x + a.width &&
+        saved.y < a.y + a.height
+      );
+    });
+    if (onScreen) {
+      return { x: saved.x, y: saved.y };
+    }
+  }
+  return { x: undefined, y: undefined };
+}
+
 function loadWindowState() {
   try {
-    const state = JSON.parse(fs.readFileSync(stateFile, "utf8"));
-    if (state.hasOwnProperty("followSystemTheme")) {
-      followSystemTheme = state.followSystemTheme;
-    }
-    return state;
+    return JSON.parse(fs.readFileSync(stateFile, "utf8"));
   } catch {
     return null;
   }
@@ -153,11 +182,6 @@ function watchCustomDirectory() {
 }
 
 // --- 核心业务监听 ---
-// 注册主题请求处理
-ipcMain.handle("get-theme", () => {
-  return followSystemTheme && nativeTheme.shouldUseDarkColors;
-});
-
 // 注册通知监听
 ipcMain.on("track-update", (event, data) => {
   if (!data || !data.title) return;
@@ -178,8 +202,10 @@ function compareVersions(a, b) {
   const pa = a.split(".").map(Number);
   const pb = b.split(".").map(Number);
   for (let i = 0; i < 3; i++) {
-    if (pa[i] > pb[i]) return 1;
-    if (pa[i] < pb[i]) return -1;
+    const na = pa[i] ?? 0;
+    const nb = pb[i] ?? 0;
+    if (na > nb) return 1;
+    if (na < nb) return -1;
   }
   return 0;
 }
@@ -201,6 +227,12 @@ function checkForUpdates() {
       timeout: 10000,
     },
     (res) => {
+      // GitHub API 限流(403)、无 release(404) 等视为无可检查信息，直接结束。
+      if (res.statusCode !== 200) {
+        res.resume();
+        return;
+      }
+
       let body = "";
       res.on("data", (c) => (body += c));
       res.on("end", () => {
@@ -232,25 +264,27 @@ function checkForUpdates() {
     },
   );
   req.on("error", () => {});
+  // 超时（含 DNS/连接/空闲无响应）时强制中断，避免 socket 悬挂。
+  req.on("timeout", () => req.destroy());
   req.end();
 }
 
 // --- 窗口创建 ---
 function createWindow() {
   const saved = loadWindowState();
+  const pos = resolveWindowBounds(saved);
 
   mainWindow = new BrowserWindow({
     width: saved?.width || 1920,
     height: saved?.height || 1080,
-    x: saved?.x,
-    y: saved?.y,
+    x: pos.x,
+    y: pos.y,
     icon: getIconPath(),
     autoHideMenuBar: true, // 隐藏菜单栏
     show: false, // 配合 ready-to-show
     webPreferences: {
       preload: path.join(__dirname, "preload.js"),
-      contextIsolation: false,
-      webviewTag: true,
+      contextIsolation: true,
       spellcheck: false,
     },
   });
@@ -264,6 +298,14 @@ function createWindow() {
 
   mainWindow.webContents.userAgent =
     "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36";
+
+  // 拦截 window.open / target=_blank：外链交由系统默认浏览器打开，
+  // 禁止在应用内新建继承同等配置（含远程内容）的 Electron 窗口。
+  mainWindow.webContents.setWindowOpenHandler(({ url }) => {
+    if (url) shell.openExternal(url);
+    return { action: "deny" };
+  });
+
   mainWindow.loadURL(targetUrl);
 
   mainWindow.once("ready-to-show", () => {
@@ -288,19 +330,6 @@ function createWindow() {
   mainWindow.on("unmaximize", scheduleSave);
 }
 
-function updateThemeState() {
-  mainWindow?.webContents.send(
-    "theme-changed",
-    followSystemTheme && nativeTheme.shouldUseDarkColors,
-  );
-}
-
-nativeTheme.on("updated", () => {
-  if (followSystemTheme) {
-    updateThemeState();
-  }
-});
-
 // --- 托盘与 About ---
 function updateTrayMenu() {
   const visible = mainWindow?.isVisible() ?? true;
@@ -315,19 +344,16 @@ function updateTrayMenu() {
         }
       },
     },
-    {
-      label: `Follow System Theme: ${followSystemTheme ? "[ON]" : "[OFF]"}`,
-      click: () => {
-        followSystemTheme = !followSystemTheme;
-        scheduleSave();
-        updateThemeState();
-        updateTrayMenu();
-      },
-    },
     { type: "separator" },
     {
       label: "Reload",
       click: () => mainWindow?.webContents?.reload(),
+    },
+    {
+      label: "Reload Custom",
+      click: () => {
+        if (mainWindow?.webContents) loadCustomResources();
+      },
     },
     {
       label: "DevTools",
@@ -359,7 +385,6 @@ function updateTrayMenu() {
 
 function showAboutDialog() {
   const iconBase64 = fs.readFileSync(getIconPath()).toString("base64");
-  const isDark = followSystemTheme && nativeTheme.shouldUseDarkColors;
 
   const html = `<!DOCTYPE html>
 <html>
@@ -375,15 +400,6 @@ function showAboutDialog() {
       --border: #f0f0f0;
       --btn-bg: #fafafa;
       --btn-hover: #f0f0f0;
-    }
-    body.dark-theme {
-      --bg: #1e1e1e;
-      --text-main: #e0e0e0;
-      --text-sub: #aaa;
-      --text-desc: #ccc;
-      --border: #333;
-      --btn-bg: #2a2a2a;
-      --btn-hover: #383838;
     }
     body {
       font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
@@ -414,7 +430,7 @@ function showAboutDialog() {
     button:hover { background: var(--btn-hover); }
   </style>
 </head>
-<body class="${isDark ? "dark-theme" : ""}">
+<body>
   <img src="data:image/png;base64,${iconBase64}" alt="ncm-desktop">
   <h1>ncm-desktop</h1>
   <p class="version">Version ${app.getVersion()}</p>
@@ -440,7 +456,7 @@ function showAboutDialog() {
     title: "About ncm-desktop",
     parent: mainWindow,
     webPreferences: {
-      contextIsolation: false,
+      contextIsolation: true,
       nodeIntegration: false,
     },
   });

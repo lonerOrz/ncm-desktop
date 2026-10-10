@@ -1,56 +1,36 @@
-const { ipcRenderer } = require("electron");
+const { ipcRenderer, contextBridge } = require("electron");
 
-// Dark 模式
-const DARK_STYLE = `
-    html.ncm-dark-theme {
-        filter: invert(0.9) hue-rotate(180deg) !important;
-    }
-    html.ncm-dark-theme img,
-    html.ncm-dark-theme video,
-    html.ncm-dark-theme iframe,
-    html.ncm-dark-theme .u-cover,
-    html.ncm-dark-theme [style*="background-image"] {
-        filter: invert(1) hue-rotate(180deg) !important;
-    }
-`;
-
-function updateTheme(isDark) {
-  if (isDark) {
-    document.documentElement.classList.add("ncm-dark-theme");
-  } else {
-    document.documentElement.classList.remove("ncm-dark-theme");
+// 媒体监控：监听当前播放曲目变化并通过受控 IPC 上报给主进程发通知。
+// 网易云会在换歌时更新标签页标题，这里用 MutationObserver 监听标题变化
+// （事件驱动），比固定 3s 轮询更省资源、换歌响应也更即时。
+let lastTitle = "";
+function reportTrack() {
+  const meta = navigator.mediaSession?.metadata;
+  const title = meta?.title || document.title;
+  if (title && title !== lastTitle) {
+    lastTitle = title;
+    ipcRenderer.send("track-update", {
+      title,
+      artist: meta?.artist || "Unknown Artist",
+    });
   }
 }
 
-// 媒体监控
-let lastTitle = "";
 function initMediaMonitor() {
-  setInterval(() => {
-    const meta = navigator.mediaSession?.metadata;
-    if (meta && meta.title && meta.title !== lastTitle) {
-      lastTitle = meta.title;
-      ipcRenderer.send("track-update", {
-        title: meta.title,
-        artist: meta.artist || "Unknown Artist",
-      });
-    }
-  }, 3000);
+  reportTrack();
+
+  const titleEl = document.querySelector("title");
+  if (titleEl) {
+    const observer = new MutationObserver(() => reportTrack());
+    observer.observe(titleEl, { childList: true, characterData: true, subtree: true });
+  }
 }
 
-ipcRenderer.on("theme-changed", (event, isDark) => {
-  updateTheme(isDark);
+// 仅暴露必要、受控的 API 给页面（contextIsolation: true）
+contextBridge.exposeInMainWorld("ncm", {
+  notifyTrack: (data) => ipcRenderer.send("track-update", data),
 });
 
-window.__ncmTrackUpdate = (data) => {
-  ipcRenderer.send("track-update", data);
-};
-
 window.addEventListener("DOMContentLoaded", () => {
-  const style = document.createElement("style");
-  style.innerHTML = DARK_STYLE;
-  document.head.appendChild(style);
-
-  ipcRenderer.invoke("get-theme").then(updateTheme);
-
   initMediaMonitor();
 });
