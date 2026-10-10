@@ -26,6 +26,11 @@ jobs:
         with:
           node-version: 24
           cache: "npm"
+      - name: Install Electron native dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libgtk-3-0 libnss3 libasound2 libdrm2 \
+            libgbm1 libxshmfence1 fuse
       - run: npm ci
       - run: npm run build
       - name: Upload Linux Artifacts
