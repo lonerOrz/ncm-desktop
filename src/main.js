@@ -201,6 +201,12 @@ function checkForUpdates() {
       timeout: 10000,
     },
     (res) => {
+      // GitHub API 限流(403)、无 release(404) 等视为无可检查信息，直接结束。
+      if (res.statusCode !== 200) {
+        res.resume();
+        return;
+      }
+
       let body = "";
       res.on("data", (c) => (body += c));
       res.on("end", () => {
@@ -232,6 +238,8 @@ function checkForUpdates() {
     },
   );
   req.on("error", () => {});
+  // 超时（含 DNS/连接/空闲无响应）时强制中断，避免 socket 悬挂。
+  req.on("timeout", () => req.destroy());
   req.end();
 }
 
