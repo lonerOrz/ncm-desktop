@@ -264,6 +264,14 @@ function createWindow() {
 
   mainWindow.webContents.userAgent =
     "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36";
+
+  // 拦截 window.open / target=_blank：外链交由系统默认浏览器打开，
+  // 禁止在应用内新建继承同等配置（含远程内容）的 Electron 窗口。
+  mainWindow.webContents.setWindowOpenHandler(({ url }) => {
+    if (url) shell.openExternal(url);
+    return { action: "deny" };
+  });
+
   mainWindow.loadURL(targetUrl);
 
   mainWindow.once("ready-to-show", () => {
