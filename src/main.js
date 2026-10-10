@@ -6,6 +6,7 @@ const {
   nativeImage,
   ipcMain,
   Notification,
+  screen,
   shell,
 } = require("electron");
 const path = require("path");
@@ -64,6 +65,27 @@ function saveWindowState() {
       JSON.stringify({ ...bounds, maximized }),
     );
   } catch {}
+}
+
+// 校验持久化的窗口位置是否落在某个显示器的可用区域内；
+// 多屏/分辨率变化后旧坐标可能跑到屏幕外，此时回退居中。
+function resolveWindowBounds(saved) {
+  if (saved && typeof saved.x === "number" && typeof saved.y === "number") {
+    const displays = screen.getAllDisplays();
+    const onScreen = displays.some((d) => {
+      const a = d.workArea;
+      return (
+        saved.x >= a.x &&
+        saved.y >= a.y &&
+        saved.x < a.x + a.width &&
+        saved.y < a.y + a.height
+      );
+    });
+    if (onScreen) {
+      return { x: saved.x, y: saved.y };
+    }
+  }
+  return { x: undefined, y: undefined };
 }
 
 function loadWindowState() {
@@ -250,12 +272,13 @@ function checkForUpdates() {
 // --- 窗口创建 ---
 function createWindow() {
   const saved = loadWindowState();
+  const pos = resolveWindowBounds(saved);
 
   mainWindow = new BrowserWindow({
     width: saved?.width || 1920,
     height: saved?.height || 1080,
-    x: saved?.x,
-    y: saved?.y,
+    x: pos.x,
+    y: pos.y,
     icon: getIconPath(),
     autoHideMenuBar: true, // 隐藏菜单栏
     show: false, // 配合 ready-to-show
